@@ -33,6 +33,22 @@ void setup()
     WriteMPUReg(0x6B, 0);  //启动MPU6050设备
     Calibration();         //执行校准
     nLastTime = micros();  //记录当前时间
+
+    // setup motor
+    pinMode(22, OUTPUT);
+    pinMode(24, OUTPUT);
+    pinMode(26, OUTPUT);
+    pinMode(28, OUTPUT);
+
+    pinMode(34, OUTPUT);
+    pinMode(36, OUTPUT);
+    pinMode(38, OUTPUT);
+    pinMode(40, OUTPUT);
+
+    pinMode(46, OUTPUT);
+    pinMode(48, OUTPUT);
+    pinMode(50, OUTPUT);
+    pinMode(52, OUTPUT);
 }
 
 void loop()
@@ -46,7 +62,20 @@ void loop()
     getControlOutput(roll, pitch, roll_rate, pitch_rate, vs1, vs2, vs3);
 
     // control motor
-    /////////////////////////////////////////////////////////
+    if(vs1 > 0)
+        motorspeed1(1, vs1);
+    else
+        motorspeed1(-1, -vs1);
+
+    if(vs2 > 0)
+        motorspeed2(1, vs2);
+    else
+        motorspeed2(-1, -vs2);
+
+    if(vs3 > 0)
+        motorspeed3(1, vs3);
+    else
+        motorspeed3(-1, -vs3);
 
     //向串口打印输出Roll角和Pitch角，运行时在Arduino的串口监视器中查看
     Serial.print("Roll:");
@@ -67,7 +96,74 @@ void loop()
     Serial.print(" ,");
     Serial.print(vs3);
     Serial.print("\n\n");
-    delay(300);
+    // delay(300);
+}
+
+// motor control API
+// dir为真实转动正负,正数和负数
+// rps 为设定转速, 单位为round/sec
+//目前按照8倍细分
+void motorspeed1(int dir, float rps)
+{
+    if(dir >= 0)
+    {
+        digitalWrite(46, LOW);
+    }
+    else
+    {
+        digitalWrite(46, HIGH);
+    }
+
+    digitalWrite(48, HIGH);
+    digitalWrite(52, HIGH);
+
+    digitalWrite(50, HIGH);
+    delayMicroseconds(int(2500 / rps));
+
+    digitalWrite(50, LOW);
+    delayMicroseconds(int(2500 / rps));
+}
+
+void motorspeed2(int dir, float rps)
+{
+    if(dir >= 0)
+    {
+        digitalWrite(22, LOW);
+    }
+    else
+    {
+        digitalWrite(22, HIGH);
+    }
+
+    digitalWrite(24, HIGH);
+    digitalWrite(28, HIGH);
+
+    digitalWrite(26, HIGH);
+    delayMicroseconds(int(2500 / rps));
+
+    digitalWrite(26, LOW);
+    delayMicroseconds(int(2500 / rps));
+}
+
+void motorspeed3(int dir, float rps)
+{
+    if(dir >= 0)
+    {
+        digitalWrite(34, LOW);
+    }
+    else
+    {
+        digitalWrite(34, HIGH);
+    }
+
+    digitalWrite(36, HIGH);
+    digitalWrite(40, HIGH);
+
+    digitalWrite(38, HIGH);
+    delayMicroseconds(int(2500 / rps));
+
+    digitalWrite(38, LOW);
+    delayMicroseconds(int(2500 / rps));
 }
 
 // get needed control output
@@ -81,7 +177,7 @@ void getControlOutput(const float roll, const float pitch, const float roll_rate
     float theta_y_dot = -roll_rate;
 
     // Then the required accerleration of control can be computed
-    const float ka = 10.0, kav = 0.1;
+    const float ka = 20.0, kav = 0.1;
     float a_x = ka * theta_x + kav * theta_x_dot;
     float a_y = ka * theta_y + kav * theta_y_dot;
 
