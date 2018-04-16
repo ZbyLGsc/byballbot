@@ -26,7 +26,7 @@ Kalman kalmanPitch;           // Pitch角滤波器
 
 void setup()
 {
-    Serial.begin(9600);    //初始化串口，指定波特率
+    Serial.begin(9600);  //初始化串口，指定波特率
 
     // setup IMU
     Wire.begin();          //初始化Wire库
@@ -37,9 +37,17 @@ void setup()
 
 void loop()
 {
+    // get roll and picth (as well as angle rate) of ballbot
     float roll, pitch, roll_rate, pitch_rate;
     getAngleAndRate(roll, pitch, roll_rate, pitch_rate);
-    
+
+    // get the needed motor output
+    float vs1, vs2, vs3;
+    getControlOutput(roll, pitch, roll_rate, pitch_rate, vs1, vs2, vs3);
+
+    // control motor
+    /////////////////////////////////////////////////////////
+
     //向串口打印输出Roll角和Pitch角，运行时在Arduino的串口监视器中查看
     Serial.print("Roll:");
     Serial.print(roll);
@@ -50,7 +58,39 @@ void loop()
     Serial.print('(');
     Serial.print(pitch_rate);
     Serial.print(")\n");
-    delay(10);
+
+    // print vs
+    Serial.print("Vs:");
+    Serial.print(vs1);
+    Serial.print(" ,");
+    Serial.print(vs2);
+    Serial.print(" ,");
+    Serial.print(vs3);
+    Serial.print("\n\n");
+    delay(300);
+}
+
+// get needed control output
+void getControlOutput(const float roll, const float pitch, const float roll_rate, const float pitch_rate,
+                      float &vs1, float &vs2, float &vs3)
+{
+    // convert roll and pitch to plannar theta
+    float theta_x = -pitch;
+    float theta_x_dot = -pitch_rate;
+    float theta_y = -roll;
+    float theta_y_dot = -roll_rate;
+
+    // Then the required accerleration of control can be computed
+    const float ka = 10.0, kav = 0.1;
+    float a_x = ka * theta_x + kav * theta_x_dot;
+    float a_y = ka * theta_y + kav * theta_y_dot;
+
+    // Convert ball velocity to motor velocity
+    const float c_phi = cos(45 / fRad2Deg), kz = -0.1 * sin(45 / fRad2Deg);
+    float w_z = 0.0;
+    vs1 = -a_y * c_phi + kz * w_z;
+    vs2 = (sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
+    vs3 = (-sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
 }
 
 // get roll and pitch (also rate)
