@@ -34,17 +34,19 @@ Kalman kalmanRoll;            // Roll角滤波器
 Kalman kalmanPitch;           // Pitch角滤波器
 
 // motor control
-float vs1 = 0.0, vs2 = 0.0, vs3 = 0.0;
+float vs1 = 1.0, vs2 = 3.0, vs3 = 0.3;
 int lh1 = HIGH, lh2 = HIGH, lh3 = HIGH;
 unsigned long last_step1 = 0, last_step2 = 0, last_step3 = 0, last_step_imu = 0;
-unsigned long delay1 = 2500 / 8 / abs(vs1 + 1e-5), delay2 = 2500 / 8 / abs(vs2 + 1e-5),
-              delay3 = 2500 / 8 / abs(vs3 + 1e-5), delay_imu = 10000;
+int delay1 = 2500 / 8 / abs(vs1 + 1e-5), delay2 = 2500 / 8 / abs(vs2 + 1e-5),
+    delay3 = 2500 / 8 / abs(vs3 + 1e-5);
+const unsigned long delay_imu = 20000;
 
 int count = 0;
 
 void setup()
 {
     Serial.begin(9600);  //初始化串口，指定波特率
+    Serial.println("start:");
 
     // setup IMU
     Wire.begin();          //初始化Wire库
@@ -84,6 +86,21 @@ void setup()
 
 void loop()
 {
+    // test
+    // if(int(micros() / 1000000) % 2 == 0)
+    // {
+    //     digitalWrite(46, LOW);
+    //     digitalWrite(22, LOW);
+    //     digitalWrite(34, LOW);
+    // }
+    // else
+    // {
+    //     digitalWrite(46, HIGH);
+    //     digitalWrite(22, HIGH);
+    //     digitalWrite(34, HIGH);
+    // }
+    // Serial.println("loop:");
+
     // control motor
     unsigned long now = micros();
     if(last_step1 + delay1 <= now)
@@ -101,6 +118,7 @@ void loop()
         }
     }
 
+    now = micros();
     if(last_step2 + delay2 <= now)
     {
         last_step2 = now;
@@ -116,6 +134,7 @@ void loop()
         }
     }
 
+    now = micros();
     if(last_step3 + delay3 <= now)
     {
         last_step3 = now;
@@ -132,6 +151,7 @@ void loop()
     }
 
     // imu
+    now = micros();
     if(last_step_imu + delay_imu <= now)
     {
         last_step_imu = now;
@@ -140,11 +160,14 @@ void loop()
 
         // get the needed motor output
         getControlOutput(roll, pitch, roll_rate, pitch_rate, vs1, vs2, vs3);
+        // vs1 = 1.0;
+        // vs2 = 3.0;
+        // vs3 = 0.3;
 
         // calculate delay
-        delay1 = 2500 / 8 / abs(vs1 + 1e-5);
-        delay2 = 2500 / 8 / abs(vs2 + 1e-5);
-        delay3 = 2500 / 8 / abs(vs3 + 1e-5);
+        delay1 = int(2500.0 / 8 / abs(vs1));
+        delay2 = int(2500.0 / 8 / abs(vs2));
+        delay3 = int(2500.0 / 8 / abs(vs3));
 
         // direction
         if(vs1 > 0)
@@ -165,10 +188,20 @@ void loop()
         count++;
         if(count >= 100)
         {
+            Serial.println("angle:");
+            Serial.println(-pitch);
+            Serial.println(-roll);
+
             Serial.println("Vel:");
             Serial.println(vs1);
             Serial.println(vs2);
             Serial.println(vs3);
+
+            Serial.println("delay:");
+            Serial.println(delay1);
+            Serial.println(delay2);
+            Serial.println(delay3);
+            Serial.println("");
             count = 0;
         }
     }
@@ -185,7 +218,7 @@ void getControlOutput(const float roll, const float pitch, const float roll_rate
     float theta_y_dot = -roll_rate;
 
     // Then the required accerleration of control can be computed
-    const float ka = 20.0 / 30, kav = 0.1 / 30;
+    const float ka = 20.0 / 500, kav = 0.1 / 500;
     float a_x = ka * theta_x + kav * theta_x_dot;
     float a_y = ka * theta_y + kav * theta_y_dot;
 
@@ -195,6 +228,23 @@ void getControlOutput(const float roll, const float pitch, const float roll_rate
     vs1 = -a_y * c_phi + kz * w_z;
     vs2 = (sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
     vs3 = (-sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
+
+    // bound
+    float bound = 0.2;
+    if(vs1 > 0 && vs1 < bound)
+        vs1 = bound;
+    else if(vs1 < 0 && vs1 > -bound)
+        vs1 = -bound;
+
+    if(vs2 > 0 && vs2 < bound)
+        vs2 = bound;
+    else if(vs2 < 0 && vs2 > -bound)
+        vs2 = -bound;
+
+    if(vs3 > 0 && vs3 < bound)
+        vs3 = bound;
+    else if(vs3 < 0 && vs3 > -bound)
+        vs3 = -bound;
 }
 
 // get roll and pitch (also rate)
