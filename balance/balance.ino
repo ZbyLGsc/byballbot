@@ -6,9 +6,18 @@
 // SDA-20
 // INT-2 (Optional)
 
+#include <FlexiTimer2.h>
 #include <Kalman.h>
 #include <Wire.h>
 #include <math.h>
+
+#define MOTOR1_DIR_PIN 46
+#define MOTOR2_DIR_PIN 22
+#define MOTOR3_DIR_PIN 34
+
+#define MOTOR1_VEL_PIN 50
+#define MOTOR2_VEL_PIN 26
+#define MOTOR3_VEL_PIN 38
 
 // IMU parameter
 float fRad2Deg = 57.295779513f;  //将弧度转为角度的乘数
@@ -23,6 +32,15 @@ float fLastRoll = 0.0f;       //上一次滤波得到的Roll角
 float fLastPitch = 0.0f;      //上一次滤波得到的Pitch角
 Kalman kalmanRoll;            // Roll角滤波器
 Kalman kalmanPitch;           // Pitch角滤波器
+
+// motor control
+float vs1 = 0.0, vs2 = 0.0, vs3 = 0.0;
+int lh1 = HIGH, lh2 = HIGH, lh3 = HIGH;
+unsigned long last_step1 = 0, last_step2 = 0, last_step3 = 0, last_step_imu = 0;
+unsigned long delay1 = 2500 / 8 / abs(vs1 + 1e-5), delay2 = 2500 / 8 / abs(vs2 + 1e-5),
+              delay3 = 2500 / 8 / abs(vs3 + 1e-5), delay_imu = 10000;
+
+int count = 0;
 
 void setup()
 {
@@ -49,121 +67,111 @@ void setup()
     pinMode(48, OUTPUT);
     pinMode(50, OUTPUT);
     pinMode(52, OUTPUT);
-}
-
-void loop()
-{
-    // get roll and picth (as well as angle rate) of ballbot
-    float roll, pitch, roll_rate, pitch_rate;
-    getAngleAndRate(roll, pitch, roll_rate, pitch_rate);
-
-    // get the needed motor output
-    float vs1, vs2, vs3;
-    getControlOutput(roll, pitch, roll_rate, pitch_rate, vs1, vs2, vs3);
-
-    // control motor
-    if(vs1 > 0)
-        motorspeed1(1, vs1);
-    else
-        motorspeed1(-1, -vs1);
-
-    if(vs2 > 0)
-        motorspeed2(1, vs2);
-    else
-        motorspeed2(-1, -vs2);
-
-    if(vs3 > 0)
-        motorspeed3(1, vs3);
-    else
-        motorspeed3(-1, -vs3);
-
-    //向串口打印输出Roll角和Pitch角，运行时在Arduino的串口监视器中查看
-    Serial.print("Roll:");
-    Serial.print(roll);
-    Serial.print('(');
-    Serial.print(roll_rate);
-    Serial.print("),\tPitch:");
-    Serial.print(pitch);
-    Serial.print('(');
-    Serial.print(pitch_rate);
-    Serial.print(")\n");
-
-    // print vs
-    Serial.print("Vs:");
-    Serial.print(vs1);
-    Serial.print(" ,");
-    Serial.print(vs2);
-    Serial.print(" ,");
-    Serial.print(vs3);
-    Serial.print("\n\n");
-    // delay(300);
-}
-
-// motor control API
-// dir为真实转动正负,正数和负数
-// rps 为设定转速, 单位为round/sec
-//目前按照8倍细分
-void motorspeed1(int dir, float rps)
-{
-    if(dir >= 0)
-    {
-        digitalWrite(46, LOW);
-    }
-    else
-    {
-        digitalWrite(46, HIGH);
-    }
 
     digitalWrite(48, HIGH);
     digitalWrite(52, HIGH);
 
-    digitalWrite(50, HIGH);
-    delayMicroseconds(int(2500 / rps));
-
-    digitalWrite(50, LOW);
-    delayMicroseconds(int(2500 / rps));
-}
-
-void motorspeed2(int dir, float rps)
-{
-    if(dir >= 0)
-    {
-        digitalWrite(22, LOW);
-    }
-    else
-    {
-        digitalWrite(22, HIGH);
-    }
-
     digitalWrite(24, HIGH);
     digitalWrite(28, HIGH);
-
-    digitalWrite(26, HIGH);
-    delayMicroseconds(int(2500 / rps));
-
-    digitalWrite(26, LOW);
-    delayMicroseconds(int(2500 / rps));
-}
-
-void motorspeed3(int dir, float rps)
-{
-    if(dir >= 0)
-    {
-        digitalWrite(34, LOW);
-    }
-    else
-    {
-        digitalWrite(34, HIGH);
-    }
 
     digitalWrite(36, HIGH);
     digitalWrite(40, HIGH);
 
-    digitalWrite(38, HIGH);
-    delayMicroseconds(int(2500 / rps));
+    digitalWrite(46, LOW);
+    digitalWrite(22, LOW);
+    digitalWrite(34, LOW);
+}
 
-    digitalWrite(38, LOW);
-    delayMicroseconds(int(2500 / rps));
+void loop()
+{
+    // control motor
+    unsigned long now = micros();
+    if(last_step1 + delay1 <= now)
+    {
+        last_step1 = now;
+        if(lh1 == HIGH)
+        {
+            digitalWrite(50, LOW);
+            lh1 = LOW;
+        }
+        else if(lh1 == LOW)
+        {
+            digitalWrite(50, HIGH);
+            lh1 = HIGH;
+        }
+    }
+
+    if(last_step2 + delay2 <= now)
+    {
+        last_step2 = now;
+        if(lh2 == HIGH)
+        {
+            digitalWrite(26, LOW);
+            lh2 = LOW;
+        }
+        else if(lh2 == LOW)
+        {
+            digitalWrite(26, HIGH);
+            lh2 = HIGH;
+        }
+    }
+
+    if(last_step3 + delay3 <= now)
+    {
+        last_step3 = now;
+        if(lh3 == HIGH)
+        {
+            digitalWrite(38, LOW);
+            lh3 = LOW;
+        }
+        else if(lh3 == LOW)
+        {
+            digitalWrite(38, HIGH);
+            lh3 = HIGH;
+        }
+    }
+
+    // imu
+    if(last_step_imu + delay_imu <= now)
+    {
+        last_step_imu = now;
+        float roll, pitch, roll_rate, pitch_rate;
+        getAngleAndRate(roll, pitch, roll_rate, pitch_rate);
+
+        // get the needed motor output
+        getControlOutput(roll, pitch, roll_rate, pitch_rate, vs1, vs2, vs3);
+
+        // calculate delay
+        delay1 = 2500 / 8 / abs(vs1 + 1e-5);
+        delay2 = 2500 / 8 / abs(vs2 + 1e-5);
+        delay3 = 2500 / 8 / abs(vs3 + 1e-5);
+
+        // direction
+        if(vs1 > 0)
+            digitalWrite(46, HIGH);
+        else
+            digitalWrite(46, LOW);
+
+        if(vs2 > 0)
+            digitalWrite(22, HIGH);
+        else
+            digitalWrite(22, LOW);
+
+        if(vs3 > 0)
+            digitalWrite(34, HIGH);
+        else
+            digitalWrite(34, LOW);
+
+        count++;
+        if(count >= 100)
+        {
+            Serial.println("Vel:");
+            Serial.println(vs1);
+            Serial.println(vs2);
+            Serial.println(vs3);
+            count = 0;
+        }
+    }
 }
 
 // get needed control output
@@ -177,7 +185,7 @@ void getControlOutput(const float roll, const float pitch, const float roll_rate
     float theta_y_dot = -roll_rate;
 
     // Then the required accerleration of control can be computed
-    const float ka = 20.0, kav = 0.1;
+    const float ka = 20.0 / 30, kav = 0.1 / 30;
     float a_x = ka * theta_x + kav * theta_x_dot;
     float a_y = ka * theta_y + kav * theta_y_dot;
 
