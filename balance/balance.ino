@@ -34,18 +34,16 @@ Kalman kalmanRoll;            // Roll角滤波器
 Kalman kalmanPitch;           // Pitch角滤波器
 
 // motor control
-float vs1 = 1.0, vs2 = 3.0, vs3 = 0.3;
-int lh1 = HIGH, lh2 = HIGH, lh3 = HIGH;
-unsigned long last_step1 = 0, last_step2 = 0, last_step3 = 0, last_step_imu = 0;
-int delay1 = 2500 / 8 / abs(vs1 + 1e-5), delay2 = 2500 / 8 / abs(vs2 + 1e-5),
-    delay3 = 2500 / 8 / abs(vs3 + 1e-5);
+float vs1 = 0.0, vs2 = 0.0, vs3 = 0.0;
+int delay1, delay2, delay3;
 const unsigned long delay_imu = 20000;
+unsigned long last_step_imu = 0;
 
 int count = 0;
 
 void setup()
 {
-    Serial.begin(9600);  //初始化串口，指定波特率
+    Serial.begin(115200);  //初始化串口，指定波特率
     Serial.println("start:");
 
     // setup IMU
@@ -53,140 +51,43 @@ void setup()
     WriteMPUReg(0x6B, 0);  //启动MPU6050设备
     Calibration();         //执行校准
     nLastTime = micros();  //记录当前时间
-
-    // setup motor
-    pinMode(22, OUTPUT);
-    pinMode(24, OUTPUT);
-    pinMode(26, OUTPUT);
-    pinMode(28, OUTPUT);
-
-    pinMode(34, OUTPUT);
-    pinMode(36, OUTPUT);
-    pinMode(38, OUTPUT);
-    pinMode(40, OUTPUT);
-
-    pinMode(46, OUTPUT);
-    pinMode(48, OUTPUT);
-    pinMode(50, OUTPUT);
-    pinMode(52, OUTPUT);
-
-    digitalWrite(48, HIGH);
-    digitalWrite(52, HIGH);
-
-    digitalWrite(24, HIGH);
-    digitalWrite(28, HIGH);
-
-    digitalWrite(36, HIGH);
-    digitalWrite(40, HIGH);
-
-    digitalWrite(46, LOW);
-    digitalWrite(22, LOW);
-    digitalWrite(34, LOW);
 }
 
 void loop()
 {
-    // test
-    // if(int(micros() / 1000000) % 2 == 0)
-    // {
-    //     digitalWrite(46, LOW);
-    //     digitalWrite(22, LOW);
-    //     digitalWrite(34, LOW);
-    // }
-    // else
-    // {
-    //     digitalWrite(46, HIGH);
-    //     digitalWrite(22, HIGH);
-    //     digitalWrite(34, HIGH);
-    // }
-    // Serial.println("loop:");
-
-    // control motor
-    unsigned long now = micros();
-    if(last_step1 + delay1 <= now)
-    {
-        last_step1 = now;
-        if(lh1 == HIGH)
-        {
-            digitalWrite(50, LOW);
-            lh1 = LOW;
-        }
-        else if(lh1 == LOW)
-        {
-            digitalWrite(50, HIGH);
-            lh1 = HIGH;
-        }
-    }
-
-    now = micros();
-    if(last_step2 + delay2 <= now)
-    {
-        last_step2 = now;
-        if(lh2 == HIGH)
-        {
-            digitalWrite(26, LOW);
-            lh2 = LOW;
-        }
-        else if(lh2 == LOW)
-        {
-            digitalWrite(26, HIGH);
-            lh2 = HIGH;
-        }
-    }
-
-    now = micros();
-    if(last_step3 + delay3 <= now)
-    {
-        last_step3 = now;
-        if(lh3 == HIGH)
-        {
-            digitalWrite(38, LOW);
-            lh3 = LOW;
-        }
-        else if(lh3 == LOW)
-        {
-            digitalWrite(38, HIGH);
-            lh3 = HIGH;
-        }
-    }
-
     // imu
-    now = micros();
+    unsigned long now = micros();
     if(last_step_imu + delay_imu <= now)
     {
-        last_step_imu = now;
+        // Serial.println("imu");
+        last_step_imu += delay_imu;
         float roll, pitch, roll_rate, pitch_rate;
         getAngleAndRate(roll, pitch, roll_rate, pitch_rate);
 
         // get the needed motor output
         getControlOutput(roll, pitch, roll_rate, pitch_rate, vs1, vs2, vs3);
         // vs1 = 1.0;
-        // vs2 = 3.0;
-        // vs3 = 0.3;
+        // vs2 = 0.3;
+        // vs3 = 1.0;
 
         // calculate delay
-        delay1 = int(2500.0 / 8 / abs(vs1));
-        delay2 = int(2500.0 / 8 / abs(vs2));
-        delay3 = int(2500.0 / 8 / abs(vs3));
-
-        // direction
-        if(vs1 > 0)
-            digitalWrite(46, HIGH);
+        if(vs1 == 0.0)
+            delay1 = 30000;
         else
-            digitalWrite(46, LOW);
+            delay1 = int(2500.0 / 8 / abs(vs1 + 1e-3));
 
-        if(vs2 > 0)
-            digitalWrite(22, HIGH);
+        if(vs2 == 0.0)
+            delay2 = 30000;
         else
-            digitalWrite(22, LOW);
+            delay2 = int(2500.0 / 8 / abs(vs2 + 1e-3));
 
-        if(vs3 > 0)
-            digitalWrite(34, HIGH);
+        if(vs3 == 0.0)
+            delay3 = 30000;
         else
-            digitalWrite(34, LOW);
+            delay3 = int(2500.0 / 8 / abs(vs3 + 1e-3));
 
         count++;
-        if(count >= 100)
+        if(count >= 50)
         {
             Serial.println("angle:");
             Serial.println(-pitch);
@@ -202,6 +103,7 @@ void loop()
             Serial.println(delay2);
             Serial.println(delay3);
             Serial.println("");
+
             count = 0;
         }
     }
@@ -218,9 +120,17 @@ void getControlOutput(const float roll, const float pitch, const float roll_rate
     float theta_y_dot = -roll_rate;
 
     // Then the required accerleration of control can be computed
-    const float ka = 20.0 / 500, kav = 0.1 / 500;
-    float a_x = ka * theta_x + kav * theta_x_dot;
-    float a_y = ka * theta_y + kav * theta_y_dot;
+    const float ka = 20.0 / 100, kav = 0.1 / 100;
+    float a_x, a_y;
+    if(abs(theta_x) < 5)
+        a_x = 0.0;
+    else
+        a_x = ka * theta_x + kav * theta_x_dot;
+
+    if(abs(theta_y) < 5)
+        a_y = 0.0;
+    else
+        a_y = ka * theta_y + kav * theta_y_dot;
 
     // Convert ball velocity to motor velocity
     const float c_phi = cos(45 / fRad2Deg), kz = -0.1 * sin(45 / fRad2Deg);
@@ -230,7 +140,7 @@ void getControlOutput(const float roll, const float pitch, const float roll_rate
     vs3 = (-sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
 
     // bound
-    float bound = 0.2;
+    float bound = 0.3;
     if(vs1 > 0 && vs1 < bound)
         vs1 = bound;
     else if(vs1 < 0 && vs1 > -bound)
