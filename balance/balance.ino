@@ -35,8 +35,8 @@ Kalman kalmanPitch;           // Pitch角滤波器
 
 // motor control
 float vs1 = 0.0, vs2 = 0.0, vs3 = 0.0;
-int delay1, delay2, delay3;
-const unsigned long delay_imu = 20000;
+long delay1, delay2, delay3;
+const unsigned long delay_imu = 2000;
 unsigned long last_step_imu = 0;
 
 int count = 0;
@@ -70,21 +70,24 @@ void loop()
         // vs2 = 0.3;
         // vs3 = 1.0;
 
-        // calculate delay
-        if(vs1 == 0.0)
-            delay1 = 30000;
-        else
-            delay1 = int(2500.0 / 8 / abs(vs1 + 1e-3));
+        // if(vs1 == 0.0)
+        //     delay1 = 1000000;
+        // else
+        //     delay1 = int(2500.0 / 8 / vs1);
 
-        if(vs2 == 0.0)
-            delay2 = 30000;
-        else
-            delay2 = int(2500.0 / 8 / abs(vs2 + 1e-3));
+        // if(vs2 == 0.0)
+        //     delay2 = 1000000;
+        // else
+        //     delay2 = int(2500.0 / 8 / vs2);
 
-        if(vs3 == 0.0)
-            delay3 = 30000;
-        else
-            delay3 = int(2500.0 / 8 / abs(vs3 + 1e-3));
+        // if(vs3 == 0.0)
+        //     delay3 = 1000000;
+        // else
+        //     delay3 = int(2500.0 / 8 / vs3);
+
+        // String s = "<" + String(delay1) + ":" + String(delay2) + ":" + String(delay3) + ">";
+        String s = "<" + String(vs1) + ":" + String(vs2) + ":" + String(vs3) + ">";
+        Serial.write(s.c_str());
 
         count++;
         if(count >= 50)
@@ -120,17 +123,17 @@ void getControlOutput(const float roll, const float pitch, const float roll_rate
     float theta_y_dot = -roll_rate;
 
     // Then the required accerleration of control can be computed
-    const float ka = 20.0 / 100, kav = 0.1 / 100;
+    const float ka = 0.2, kav = 0.003;
     float a_x, a_y;
-    if(abs(theta_x) < 5)
-        a_x = 0.0;
-    else
-        a_x = ka * theta_x + kav * theta_x_dot;
+    // if(abs(theta_x) < 5)
+    //     a_x = 0.0;
+    // else
+    a_x = ka * theta_x + kav * theta_x_dot;
 
-    if(abs(theta_y) < 5)
-        a_y = 0.0;
-    else
-        a_y = ka * theta_y + kav * theta_y_dot;
+    // if(abs(theta_y) < 5)
+    //     a_y = 0.0;
+    // else
+    a_y = ka * theta_y + kav * theta_y_dot;
 
     // Convert ball velocity to motor velocity
     const float c_phi = cos(45 / fRad2Deg), kz = -0.1 * sin(45 / fRad2Deg);
@@ -138,23 +141,32 @@ void getControlOutput(const float roll, const float pitch, const float roll_rate
     vs1 = -a_y * c_phi + kz * w_z;
     vs2 = (sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
     vs3 = (-sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
+    //
+    if(abs(vs1) < 0.04) vs1 = 0;
+    if(abs(vs2) < 0.04) vs2 = 0;
+    if(abs(vs3) < 0.04) vs3 = 0;
+
+    const float limit = 0.4;
+    if(abs(vs1) > limit) vs1 = vs1 > 0.0 ? limit : -limit;
+    if(abs(vs2) > limit) vs2 = vs2 > 0.0 ? limit : -limit;
+    if(abs(vs3) > limit) vs3 = vs3 > 0.0 ? limit : -limit;
 
     // bound
-    float bound = 0.3;
-    if(vs1 > 0 && vs1 < bound)
-        vs1 = bound;
-    else if(vs1 < 0 && vs1 > -bound)
-        vs1 = -bound;
+    // float bound = 0.3;
+    // if(vs1 > 0 && vs1 < bound)
+    //     vs1 = bound;
+    // else if(vs1 < 0 && vs1 > -bound)
+    //     vs1 = -bound;
 
-    if(vs2 > 0 && vs2 < bound)
-        vs2 = bound;
-    else if(vs2 < 0 && vs2 > -bound)
-        vs2 = -bound;
+    // if(vs2 > 0 && vs2 < bound)
+    //     vs2 = bound;
+    // else if(vs2 < 0 && vs2 > -bound)
+    //     vs2 = -bound;
 
-    if(vs3 > 0 && vs3 < bound)
-        vs3 = bound;
-    else if(vs3 < 0 && vs3 > -bound)
-        vs3 = -bound;
+    // if(vs3 > 0 && vs3 < bound)
+    //     vs3 = bound;
+    // else if(vs3 < 0 && vs3 > -bound)
+    //     vs3 = -bound;
 }
 
 // get roll and pitch (also rate)

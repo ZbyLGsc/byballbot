@@ -16,11 +16,12 @@ char rc;
 boolean newData = false;
 
 // for motor control
-int dir_pins[4] = { 34, 36, 38, 40 };
-int step_pins[4] = { 35, 37, 39, 41 };
-unsigned long time_stamps[4] = { 0, 0, 0, 0 };
-unsigned long delays[4] = { INFINITE, INFINITE, INFINITE, INFINITE };
-boolean dirs[4] = { true, true, true, true };
+int dir_pins[3] = { 46, 34, 22 };
+int step_pins[3] = { 50, 38, 26 };
+unsigned long time_stamps[3] = { 0, 0, 0 };
+unsigned long delays[3] = { INFINITE, INFINITE, INFINITE };
+unsigned long acc[3] = { 0, 0, 0 };
+boolean dirs[3] = { true, true, true };
 
 void recvWithStartEndMarkers()
 {
@@ -58,17 +59,17 @@ void showNewData()
 {
     if(newData == true)
     {
-        Serial.println(receivedChars);
-        for(int i = 0; i < 10; i++)
-        {
-            digitalWrite(LED_PIN, true);
-            delay(100);
-            digitalWrite(LED_PIN, false);
-            delay(100);
-        }
+        //       Serial.println(receivedChars);
+        //         for (int i=0; i<10; i++)
+        //         {
+        //            digitalWrite(LED_PIN, true);
+        //            delay(100);
+        //            digitalWrite(LED_PIN, false);
+        //            delay(100);
+        //      }
         newData = false;
         parseData();
-        // showParsedData();
+        //        showParsedData();
     }
 }
 
@@ -94,29 +95,27 @@ void parseData()
 
     strtokIndx = strtok(receivedChars, ":");  // this continues where the previous call left off
     dirs[0] = strtokIndx[0] == '-' ? true : false;
-    delays[0] = fabs(atof(strtokIndx));  // convert this part to an integer
-                                         //  lcd.print(String(strtokIndx));
-                                         //  lcd.print(" ");
-                                         //  lcd.setCursor(8,0);
+    // delays[0] = fabs(atof(strtokIndx));     // convert this part to an integer
+    acc[0] = fabs(atof(strtokIndx));  // convert this part to an integer
+                                      //  lcd.print(String(strtokIndx));
+                                      //  lcd.print(" ");
+                                      //  lcd.setCursor(8,0);
 
     strtokIndx = strtok(NULL, ":");
     dirs[1] = strtokIndx[0] == '-' ? true : false;
-    delays[1] = fabs(atof(strtokIndx));  // convert this part to a float
-                                         //  lcd.print(String(strtokIndx));
-                                         //  lcd.print(" ");
-                                         //  lcd.setCursor(0,1);
+    // delays[1] = fabs(atof(strtokIndx));     // convert this part to a float
+    acc[1] = fabs(atof(strtokIndx));  // convert this part to a float
+                                      //  lcd.print(String(strtokIndx));
+                                      //  lcd.print(" ");
+                                      //  lcd.setCursor(0,1);
 
     strtokIndx = strtok(NULL, ":");
     dirs[2] = strtokIndx[0] == '-' ? true : false;
-    delays[2] = fabs(atof(strtokIndx));  // convert this part to a float
-                                         //  lcd.print(String(strtokIndx));
-                                         //  lcd.print(" ");
-                                         //  lcd.setCursor(8,1);
-
-    strtokIndx = strtok(NULL, ":");
-    dirs[3] = strtokIndx[0] == '-' ? true : false;
-    delays[3] = fabs(atof(strtokIndx));  // convert this part to a float
+    acc[2] = fabs(atof(strtokIndx));  // convert this part to a float
+    // delays[2] = fabs(atof(strtokIndx));     // convert this part to a float
     //  lcd.print(String(strtokIndx));
+    //  lcd.print(" ");
+    //  lcd.setCursor(8,1);
 }
 
 void getCommand()
@@ -125,7 +124,7 @@ void getCommand()
     showNewData();
 
     // get speed command for each motor from rpi
-    //  for(int i = 0; i < 4; i++)
+    //  for(int i = 0; i < 3; i++)
     //  {
     //    delays[i] = 100;
     //  }
@@ -151,6 +150,12 @@ void step(int motor_idx)
         digitalWrite(step_pins[motor_idx], HIGH);
         time_stamps[motor_idx] = time_stamps[motor_idx] + delays[motor_idx];
         digitalWrite(step_pins[motor_idx], LOW);
+
+        // compute the next required delay
+        const float k = 2500.0 / 8;
+        delays[motor_idx] =
+            (1000 * delays[motor_idx] * k) /
+            (500 * k + sqrt(k * (acc[motor_idx] * delays[motor_idx] * delays[motor_idx] + 250000 * k)));
     }
 }
 
@@ -162,13 +167,12 @@ void showParsedData()
     Serial.println(delays[1]);
     Serial.print("m3: ");
     Serial.println(delays[2]);
-    Serial.print("m4: ");
-    Serial.println(delays[3]);
 }
 
 void setup()
 {
     Serial.begin(115200);
+
     // Serial.println("<Arduino is ready>");
     //    lcd.begin(16,2);
     // lcd.backlight();
@@ -178,30 +182,54 @@ void setup()
     // lcd.print("Waiting..");
 
     // put your setup code here, to run once:
-    for(int idx = 0; idx < 4; idx++)
+    pinMode(22, OUTPUT);
+    pinMode(24, OUTPUT);
+    pinMode(26, OUTPUT);
+    pinMode(28, OUTPUT);
+
+    pinMode(34, OUTPUT);
+    pinMode(36, OUTPUT);
+    pinMode(38, OUTPUT);
+    pinMode(40, OUTPUT);
+
+    pinMode(46, OUTPUT);
+    pinMode(48, OUTPUT);
+    pinMode(50, OUTPUT);
+    pinMode(52, OUTPUT);
+
+    digitalWrite(48, HIGH);
+    digitalWrite(52, HIGH);
+
+    digitalWrite(24, HIGH);
+    digitalWrite(28, HIGH);
+
+    digitalWrite(36, HIGH);
+    digitalWrite(40, HIGH);
+
+    for(int idx = 0; idx < 3; idx++)
     {
-        pinMode(dir_pins[idx], OUTPUT);
-        pinMode(step_pins[idx], OUTPUT);
+        //    pinMode(dir_pins[idx], OUTPUT);
+        //    pinMode(step_pins[idx], OUTPUT);
         digitalWrite(dir_pins[idx], LOW);
         digitalWrite(step_pins[idx], LOW);
     }
 
-    Serial.println("pin setup done");
-    pinMode(LED_PIN, OUTPUT);
-    for(int i = 0; i < 3; i++)
-    {
-        digitalWrite(LED_PIN, true);
-        delay(500);
-        digitalWrite(LED_PIN, false);
-        delay(500);
-    }
+    //  Serial.println("pin setup done");
+    //  pinMode(LED_PIN, OUTPUT);
+    //  for (int i=0; i<3; i++)
+    //  {
+    //    digitalWrite(LED_PIN, true);
+    //    delay(500);
+    //    digitalWrite(LED_PIN, false);
+    //    delay(500);
+    //  }
 }
 
 void loop()
 {
     // put your main code here, to run repeatedly:
     getCommand();
-    for(int i = 0; i < 4; i++)
+    for(int i = 0; i < 3; i++)
     {
         step(i);
     }
