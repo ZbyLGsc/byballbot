@@ -19,6 +19,10 @@
 #define MOTOR2_VEL_PIN 26
 #define MOTOR3_VEL_PIN 38
 
+#define V_upper_limit 5.0f
+#define ACC_upper_limit 5000000.0f
+#define INFINITE (unsigned long)1000000
+
 // IMU parameter
 float fRad2Deg = 57.295779513f;  //将弧度转为角度的乘数
 const int MPU = 0x68;            // MPU-6050的I2C地址
@@ -35,9 +39,11 @@ Kalman kalmanPitch;           // Pitch角滤波器
 
 // motor control
 float vs1 = 0.0, vs2 = 0.0, vs3 = 0.0;
+float as1 = 0.0, as2 = 0.0, as3 = 0.0;
 long delay1, delay2, delay3;
 const unsigned long delay_imu = 2000;
 unsigned long last_step_imu = 0;
+unsigned long v_last_time = 0;
 
 int count = 0;
 
@@ -51,6 +57,7 @@ void setup()
     WriteMPUReg(0x6B, 0);  //启动MPU6050设备
     Calibration();         //执行校准
     nLastTime = micros();  //记录当前时间
+    v_last_time = micros();
 }
 
 void loop()
@@ -59,31 +66,17 @@ void loop()
     unsigned long now = micros();
     if(last_step_imu + delay_imu <= now)
     {
-        // Serial.println("imu");
         last_step_imu += delay_imu;
+
+        // compute roll and pitch of robot
         float roll, pitch, roll_rate, pitch_rate;
         getAngleAndRate(roll, pitch, roll_rate, pitch_rate);
 
-        // get the needed motor output
-        getControlOutput(roll, pitch, roll_rate, pitch_rate, vs1, vs2, vs3);
-        // vs1 = 1.0;
-        // vs2 = 0.3;
-        // vs3 = 1.0;
+        // get the acceleration of motors required to balance the robot
+        getAcceleration(roll, pitch, roll_rate, pitch_rate, as1, as2, as3);
 
-        if(vs1 == 0.0)
-            delay1 = 1000000;
-        else
-            delay1 = int(2500.0 / 8 / vs1);
-
-        if(vs2 == 0.0)
-            delay2 = 1000000;
-        else
-            delay2 = int(2500.0 / 8 / vs2);
-
-        if(vs3 == 0.0)
-            delay3 = 1000000;
-        else
-            delay3 = int(2500.0 / 8 / vs3);
+        // update the velocity of motors
+        updateMotorVelocity();
 
         String s = "<" + String(delay1) + ":" + String(delay2) + ":" + String(delay3) + ">";
         Serial.write(s.c_str());
@@ -111,9 +104,32 @@ void loop()
     }
 }
 
-// get needed control output
-void getControlOutput(const float roll, const float pitch, const float roll_rate, const float pitch_rate,
-                      float &vs1, float &vs2, float &vs3)
+void updateMotorVelocity()
+{
+    unsigned long v_cur_time = micros();
+    float dt = double(v_cur_time - v_last_time) / 1000000.0;
+
+    vs1 += as1 * dt;
+    vs2 += as2 * dt;
+    vs3 += as3 * dt;
+
+    // limit the velocity
+    if(fabs(vs1 > V_upper_limit)) vs1 = vs1 > 0.0 ? V_upper_limit : -V_upper_limit;
+    if(fabs(vs2 > V_upper_limit)) vs2 = vs2 > 0.0 ? V_upper_limit : -V_upper_limit;
+    if(fabs(vs3 > V_upper_limit)) vs3 = vs3 > 0.0 ? V_upper_limit : -V_upper_limit;
+
+    // dead zone
+    double k = 2500.0 / 8;
+    delay1 = fabs(vs1) > 0.002 ? k / vs1 : INFINITE;
+    delay2 = fabs(vs2) > 0.002 ? k / vs2 : INFINITE;
+    delay3 = fabs(vs3) > 0.002 ? k / vs3 : INFINITE;
+
+    v_last_time = v_cur_time;
+}
+
+// PID control for ball's pitch and roll angle, then convert to three stepper motor acceleration
+void getAcceleration(const float roll, const float pitch, const float roll_rate, const float pitch_rate,
+                     float &as1, float &as2, float &as3)
 {
     // convert roll and pitch to plannar theta
     float theta_x = -pitch;
@@ -124,48 +140,20 @@ void getControlOutput(const float roll, const float pitch, const float roll_rate
     // Then the required accerleration of control can be computed
     const float ka = 0.2, kav = 0.003;
     float a_x, a_y;
-    // if(abs(theta_x) < 5)
-    //     a_x = 0.0;
-    // else
-    a_x = ka * theta_x + kav * theta_x_dot;
 
-    // if(abs(theta_y) < 5)
-    //     a_y = 0.0;
-    // else
+    a_x = ka * theta_x + kav * theta_x_dot;
     a_y = ka * theta_y + kav * theta_y_dot;
 
-    // Convert ball velocity to motor velocity
+    // Convert ball acceleration to motors' acceleration
     const float c_phi = cos(45 / fRad2Deg), kz = -0.1 * sin(45 / fRad2Deg);
     float w_z = 0.0;
-    vs1 = -a_y * c_phi + kz * w_z;
-    vs2 = (sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
-    vs3 = (-sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
-    //
-    if(abs(vs1) < 0.04) vs1 = 0;
-    if(abs(vs2) < 0.04) vs2 = 0;
-    if(abs(vs3) < 0.04) vs3 = 0;
+    as1 = -a_y * c_phi + kz * w_z;
+    as2 = (sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
+    as3 = (-sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
 
-    const float limit = 0.4;
-    if(abs(vs1) > limit) vs1 = vs1 > 0.0 ? limit : -limit;
-    if(abs(vs2) > limit) vs2 = vs2 > 0.0 ? limit : -limit;
-    if(abs(vs3) > limit) vs3 = vs3 > 0.0 ? limit : -limit;
-
-    // bound
-    // float bound = 0.3;
-    // if(vs1 > 0 && vs1 < bound)
-    //     vs1 = bound;
-    // else if(vs1 < 0 && vs1 > -bound)
-    //     vs1 = -bound;
-
-    // if(vs2 > 0 && vs2 < bound)
-    //     vs2 = bound;
-    // else if(vs2 < 0 && vs2 > -bound)
-    //     vs2 = -bound;
-
-    // if(vs3 > 0 && vs3 < bound)
-    //     vs3 = bound;
-    // else if(vs3 < 0 && vs3 > -bound)
-    //     vs3 = -bound;
+    if(fabs(as1) > ACC_upper_limit) as1 = as1 > 0.0 ? ACC_upper_limit : -ACC_upper_limit;
+    if(fabs(as2) > ACC_upper_limit) as2 = as2 > 0.0 ? ACC_upper_limit : -ACC_upper_limit;
+    if(fabs(as3) > ACC_upper_limit) as3 = as3 > 0.0 ? ACC_upper_limit : -ACC_upper_limit;
 }
 
 // get roll and pitch (also rate)
