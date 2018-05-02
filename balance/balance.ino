@@ -70,23 +70,22 @@ void loop()
         // vs2 = 0.3;
         // vs3 = 1.0;
 
-        // if(vs1 == 0.0)
-        //     delay1 = 1000000;
-        // else
-        //     delay1 = int(2500.0 / 8 / vs1);
+        if(vs1 == 0.0)
+            delay1 = 1000000;
+        else
+            delay1 = int(2500.0 / 8 / vs1);
 
-        // if(vs2 == 0.0)
-        //     delay2 = 1000000;
-        // else
-        //     delay2 = int(2500.0 / 8 / vs2);
+        if(vs2 == 0.0)
+            delay2 = 1000000;
+        else
+            delay2 = int(2500.0 / 8 / vs2);
 
-        // if(vs3 == 0.0)
-        //     delay3 = 1000000;
-        // else
-        //     delay3 = int(2500.0 / 8 / vs3);
+        if(vs3 == 0.0)
+            delay3 = 1000000;
+        else
+            delay3 = int(2500.0 / 8 / vs3);
 
-        // String s = "<" + String(delay1) + ":" + String(delay2) + ":" + String(delay3) + ">";
-        String s = "<" + String(vs1) + ":" + String(vs2) + ":" + String(vs3) + ">";
+        String s = "<" + String(delay1) + ":" + String(delay2) + ":" + String(delay3) + ">";
         Serial.write(s.c_str());
 
         count++;
