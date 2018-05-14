@@ -18,13 +18,14 @@
 #include <Wire.h>
 #include "Kalman.h"  // Source: https://github.com/TKJElectronics/KalmanFilter
 
+
 #include <ros.h>
 #include <std_msgs/Float64.h>
 
 // kalman filter caochao
 #define KALMAN_CC_FILTER
 #ifdef KALMAN_CC_FILTER
-#include <kalman_filter.h>
+#include "kalman_filter.h"
 #endif
 
 //#define USE_LOWPASS_FILTER 0
@@ -73,28 +74,28 @@ uint8_t i2cData[14];  // Buffer for I2C data
 // TODO: Make calibration routine
 
 // ROS stuff
-ros::NodeHandle nh;
-std_msgs::Float64 imu_pitch_msg;
-std_msgs::Float64 imu_roll_msg;
-ros::Publisher imu_pitch_pub("imu_pitch", &imu_pitch_msg);
-ros::Publisher imu_roll_pub("imu_roll", &imu_roll_msg);
+// ros::NodeHandle nh;
+// std_msgs::Float64 imu_pitch_msg;
+// std_msgs::Float64 imu_roll_msg;
+// ros::Publisher imu_pitch_pub("imu_pitch", &imu_pitch_msg);
+// ros::Publisher imu_roll_pub("imu_roll", &imu_roll_msg);
 
-std_msgs::Float64 acc_pitch_msg;
-std_msgs::Float64 acc_roll_msg;
-ros::Publisher acc_pitch_pub("acc_pitch", &acc_pitch_msg);
-ros::Publisher acc_roll_pub("acc_roll", &acc_roll_msg);
+// std_msgs::Float64 acc_pitch_msg;
+// std_msgs::Float64 acc_roll_msg;
+// ros::Publisher acc_pitch_pub("acc_pitch", &acc_pitch_msg);
+// ros::Publisher acc_roll_pub("acc_roll", &acc_roll_msg);
 
-std_msgs::Float64 gyro_pitch_msg;
-std_msgs::Float64 gyro_roll_msg;
-ros::Publisher gyro_pitch_pub("gyro_pitch", &gyro_pitch_msg);
-ros::Publisher gyro_roll_pub("gyro_roll", &gyro_roll_msg);
+// std_msgs::Float64 gyro_pitch_msg;
+// std_msgs::Float64 gyro_roll_msg;
+// ros::Publisher gyro_pitch_pub("gyro_pitch", &gyro_pitch_msg);
+// ros::Publisher gyro_roll_pub("gyro_roll", &gyro_roll_msg);
 
-std_msgs::Float64 acc_x_msg;
-std_msgs::Float64 acc_y_msg;
-std_msgs::Float64 acc_z_msg;
-ros::Publisher acc_x_pub("acc_x", &acc_x_msg);
-ros::Publisher acc_y_pub("acc_y", &acc_y_msg);
-ros::Publisher acc_z_pub("acc_z", &acc_z_msg);
+// std_msgs::Float64 acc_x_msg;
+// std_msgs::Float64 acc_y_msg;
+// std_msgs::Float64 acc_z_msg;
+// ros::Publisher acc_x_pub("acc_x", &acc_x_msg);
+// ros::Publisher acc_y_pub("acc_y", &acc_y_msg);
+// ros::Publisher acc_z_pub("acc_z", &acc_z_msg);
 
 // stepper motor stuff
 uint16_t counter_m[2];
@@ -190,22 +191,22 @@ KalmanFilter *kf_acc_x;
 KalmanFilter *kf_acc_y;
 KalmanFilter *kf_acc_z;
 
-std_msgs::Float64 kf_acc_pitch_msg;
-std_msgs::Float64 kf_acc_roll_msg;
-ros::Publisher kf_acc_pitch_pub("kf_acc_pitch", &kf_acc_pitch_msg);
-ros::Publisher kf_acc_roll_pub("kf_acc_roll", &kf_acc_roll_msg);
+// std_msgs::Float64 kf_acc_pitch_msg;
+// std_msgs::Float64 kf_acc_roll_msg;
+// ros::Publisher kf_acc_pitch_pub("kf_acc_pitch", &kf_acc_pitch_msg);
+// ros::Publisher kf_acc_roll_pub("kf_acc_roll", &kf_acc_roll_msg);
 
-std_msgs::Float64 kf_gyro_x_msg;
-std_msgs::Float64 kf_gyro_y_msg;
-ros::Publisher kf_gyro_x_pub("kf_gyro_x", &kf_gyro_x_msg);
-ros::Publisher kf_gyro_y_pub("kf_gyro_y", &kf_gyro_y_msg);
+// std_msgs::Float64 kf_gyro_x_msg;
+// std_msgs::Float64 kf_gyro_y_msg;
+// ros::Publisher kf_gyro_x_pub("kf_gyro_x", &kf_gyro_x_msg);
+// ros::Publisher kf_gyro_y_pub("kf_gyro_y", &kf_gyro_y_msg);
 
-std_msgs::Float64 kf_acc_x_msg;
-std_msgs::Float64 kf_acc_y_msg;
-std_msgs::Float64 kf_acc_z_msg;
-ros::Publisher kf_acc_x_pub("kf_acc_x", &kf_acc_x_msg);
-ros::Publisher kf_acc_y_pub("kf_acc_y", &kf_acc_y_msg);
-ros::Publisher kf_acc_z_pub("kf_acc_z", &kf_acc_z_msg);
+// std_msgs::Float64 kf_acc_x_msg;
+// std_msgs::Float64 kf_acc_y_msg;
+// std_msgs::Float64 kf_acc_z_msg;
+// ros::Publisher kf_acc_x_pub("kf_acc_x", &kf_acc_x_msg);
+// ros::Publisher kf_acc_y_pub("kf_acc_y", &kf_acc_y_msg);
+// ros::Publisher kf_acc_z_pub("kf_acc_z", &kf_acc_z_msg);
 #endif
 
 float pid_pitch(float pv)
@@ -347,7 +348,7 @@ void set_delay_roll(float acc)
 
 void setup()
 {
-    // Serial.begin(115200);
+    Serial.begin(115200);
     Wire.begin();
     TWBR = ((F_CPU / 400000L) - 16) / 2;  // Set I2C frequency to 400kHz
 
@@ -399,16 +400,16 @@ void setup()
     timer = micros();
 
     // initialize ros
-    nh.initNode();
-    nh.advertise(imu_pitch_pub);
-    nh.advertise(imu_roll_pub);
-    nh.advertise(acc_pitch_pub);
-    nh.advertise(acc_roll_pub);
-    nh.advertise(gyro_pitch_pub);
-    nh.advertise(gyro_roll_pub);
-    nh.advertise(acc_x_pub);
-    nh.advertise(acc_y_pub);
-    nh.advertise(acc_z_pub);
+    // nh.initNode();
+    // nh.advertise(imu_pitch_pub);
+    // nh.advertise(imu_roll_pub);
+    // nh.advertise(acc_pitch_pub);
+    // nh.advertise(acc_roll_pub);
+    // nh.advertise(gyro_pitch_pub);
+    // nh.advertise(gyro_roll_pub);
+    // nh.advertise(acc_x_pub);
+    // nh.advertise(acc_y_pub);
+    // nh.advertise(acc_z_pub);
 
 #ifdef USE_LOWPASS_FILTER
     nh.advertise(filter_acc_pitch_pub);
@@ -437,15 +438,15 @@ void setup()
     kf_acc_y->init();
     kf_acc_z->init();
 
-    nh.advertise(kf_acc_pitch_pub);
-    nh.advertise(kf_acc_roll_pub);
+    // nh.advertise(kf_acc_pitch_pub);
+    // nh.advertise(kf_acc_roll_pub);
 
-    nh.advertise(kf_gyro_x_pub);
-    nh.advertise(kf_gyro_y_pub);
+    // nh.advertise(kf_gyro_x_pub);
+    // nh.advertise(kf_gyro_y_pub);
 
-    nh.advertise(kf_acc_x_pub);
-    nh.advertise(kf_acc_y_pub);
-    nh.advertise(kf_acc_z_pub);
+    // nh.advertise(kf_acc_x_pub);
+    // nh.advertise(kf_acc_y_pub);
+    // nh.advertise(kf_acc_z_pub);
 #endif
 
     // initialize motors
@@ -599,23 +600,23 @@ void loop()
     delt_t = millis() - count;
     if(delt_t > 100)
     {
-        //    Serial.print("Roll: ");
-        //    //Serial.print(roll); Serial.print(" ");
-        //    //Serial.print("gyro: "); Serial.print(gyroXangle); Serial.print(" ");
-        //    //Serial.print("comp: ");Serial.print(compAngleX); Serial.print(" ");
-        //    Serial.print("kal: ");Serial.print(kalAngleX); Serial.print(" ");
-        //
-        //    Serial.print(" ");
-        //
-        //    Serial.print("Pitch: ");
-        //    //Serial.print(pitch); Serial.print(" ");
-        //    //Serial.print("gyro: ");Serial.print(gyroYangle); Serial.print(" ");
-        //    //Serial.print("comp: ");Serial.print(compAngleY); Serial.print(" ");
-        //    Serial.print("kal: ");Serial.print(kalAngleY); Serial.print(" ");
+           Serial.print("Roll: ");
+           //Serial.print(roll); Serial.print(" ");
+           //Serial.print("gyro: "); Serial.print(gyroXangle); Serial.print(" ");
+           //Serial.print("comp: ");Serial.print(compAngleX); Serial.print(" ");
+           Serial.print("kal: ");Serial.print(kalAngleX); Serial.print(" ");
+        
+           Serial.print(" ");
+        
+           Serial.print("Pitch: ");
+           //Serial.print(pitch); Serial.print(" ");
+           //Serial.print("gyro: ");Serial.print(gyroYangle); Serial.print(" ");
+           //Serial.print("comp: ");Serial.print(compAngleY); Serial.print(" ");
+           Serial.print("kal: ");Serial.print(kalAngleY); Serial.print(" ");
 
-        //    Serial.print("rate = ");
-        //   Serial.print((float)sumCount/sum, 2);
-        //    Serial.println(" Hz");
+           Serial.print("rate = ");
+          Serial.print((float)sumCount/sum, 2);
+           Serial.println(" Hz");
 
         count = millis();
     }
@@ -647,20 +648,20 @@ void loop()
 
     //  imu_pitch_msg.data = kalAngleY;
     //  imu_roll_msg.data = kalAngleX;
-    imu_pitch_msg.data = sum_kalAngleY / array_size;
-    imu_roll_msg.data = sum_kalAngleX / array_size;
-    imu_pitch_pub.publish(&imu_pitch_msg);
-    imu_roll_pub.publish(&imu_roll_msg);
+    // imu_pitch_msg.data = sum_kalAngleY / array_size;
+    // imu_roll_msg.data = sum_kalAngleX / array_size;
+    // imu_pitch_pub.publish(&imu_pitch_msg);
+    // imu_roll_pub.publish(&imu_roll_msg);
 
-    acc_pitch_msg.data = acc_pitch / 100;
-    acc_roll_msg.data = acc_roll / 100;
-    acc_pitch_pub.publish(&acc_pitch_msg);
-    acc_roll_pub.publish(&acc_roll_msg);
+    // acc_pitch_msg.data = acc_pitch / 100;
+    // acc_roll_msg.data = acc_roll / 100;
+    // acc_pitch_pub.publish(&acc_pitch_msg);
+    // acc_roll_pub.publish(&acc_roll_msg);
 
-    gyro_pitch_msg.data = gyroX;
-    gyro_roll_msg.data = gyroY;
-    gyro_pitch_pub.publish(&gyro_pitch_msg);
-    gyro_roll_pub.publish(&gyro_roll_msg);
+    // gyro_pitch_msg.data = gyroX;
+    // gyro_roll_msg.data = gyroY;
+    // gyro_pitch_pub.publish(&gyro_pitch_msg);
+    // gyro_roll_pub.publish(&gyro_roll_msg);
 
 #ifdef USE_LOWPASS_FILTER
     lowpassFilter_roll.input(acc_roll);
@@ -688,35 +689,35 @@ void loop()
     kf_acc_roll = kf_roll->state();
     kf_acc_pitch = kf_pitch->state();
 
-    kf_acc_roll_msg.data = kf_acc_roll / 100;
-    kf_acc_roll_pub.publish(&kf_acc_roll_msg);
+    // kf_acc_roll_msg.data = kf_acc_roll / 100;
+    // kf_acc_roll_pub.publish(&kf_acc_roll_msg);
 
-    kf_acc_pitch_msg.data = kf_acc_pitch / 100;
-    kf_acc_pitch_pub.publish(&kf_acc_pitch_msg);
+    // kf_acc_pitch_msg.data = kf_acc_pitch / 100;
+    // kf_acc_pitch_pub.publish(&kf_acc_pitch_msg);
 
-    kf_gyro_x_msg.data = kf_gyro_x_val;
-    kf_gyro_x_pub.publish(&kf_gyro_x_msg);
+    // kf_gyro_x_msg.data = kf_gyro_x_val;
+    // kf_gyro_x_pub.publish(&kf_gyro_x_msg);
 
-    kf_gyro_y_msg.data = kf_gyro_y_val;
-    kf_gyro_y_pub.publish(&kf_gyro_y_msg);
+    // kf_gyro_y_msg.data = kf_gyro_y_val;
+    // kf_gyro_y_pub.publish(&kf_gyro_y_msg);
 
-    kf_acc_x_msg.data = kf_acc_x_val;
-    kf_acc_x_pub.publish(&kf_acc_x_msg);
+    // kf_acc_x_msg.data = kf_acc_x_val;
+    // kf_acc_x_pub.publish(&kf_acc_x_msg);
 
-    kf_acc_y_msg.data = kf_acc_y_val;
-    kf_acc_y_pub.publish(&kf_acc_y_msg);
+    // kf_acc_y_msg.data = kf_acc_y_val;
+    // kf_acc_y_pub.publish(&kf_acc_y_msg);
 
-    kf_acc_z_msg.data = kf_acc_z_val;
-    kf_acc_z_pub.publish(&kf_acc_z_msg);
+    // kf_acc_z_msg.data = kf_acc_z_val;
+    // kf_acc_z_pub.publish(&kf_acc_z_msg);
 
-    acc_x_msg.data = original_accX;
-    acc_x_pub.publish(&acc_x_msg);
+    // acc_x_msg.data = original_accX;
+    // acc_x_pub.publish(&acc_x_msg);
 
-    acc_y_msg.data = original_accY;
-    acc_y_pub.publish(&acc_y_msg);
+    // acc_y_msg.data = original_accY;
+    // acc_y_pub.publish(&acc_y_msg);
 
-    acc_z_msg.data = original_accZ;
-    acc_z_pub.publish(&acc_z_msg);
+    // acc_z_msg.data = original_accZ;
+    // acc_z_pub.publish(&acc_z_msg);
 
 #else
 
@@ -731,7 +732,7 @@ void loop()
 
 #endif
 
-    nh.spinOnce();
+    // nh.spinOnce();
 
     //  Serial.println(period_m[0]);
     //  Serial.println(period_m[1]);

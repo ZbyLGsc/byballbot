@@ -19,7 +19,7 @@
 #define MOTOR2_VEL_PIN 26
 #define MOTOR3_VEL_PIN 38
 
-#define V_upper_limit 5.0f
+#define V_upper_limit 3.0f
 #define ACC_upper_limit 5000000.0f
 #define INFINITE (unsigned long)1000000
 
@@ -41,7 +41,7 @@ Kalman kalmanPitch;           // Pitch角滤波器
 float vs1 = 0.0, vs2 = 0.0, vs3 = 0.0;
 float as1 = 0.0, as2 = 0.0, as3 = 0.0;
 long delay1, delay2, delay3;
-const unsigned long delay_imu = 2000;
+const unsigned long delay_imu = 2500;
 unsigned long last_step_imu = 0;
 unsigned long v_last_time = 0;
 
@@ -119,10 +119,10 @@ void updateMotorVelocity()
     if(fabs(vs3 > V_upper_limit)) vs3 = vs3 > 0.0 ? V_upper_limit : -V_upper_limit;
 
     // dead zone
-    double k = 2500.0 / 8;
-    delay1 = fabs(vs1) > 0.002 ? k / vs1 : INFINITE;
-    delay2 = fabs(vs2) > 0.002 ? k / vs2 : INFINITE;
-    delay3 = fabs(vs3) > 0.002 ? k / vs3 : INFINITE;
+    double k = 2500.0 / 8 / 2;
+    delay1 = fabs(vs1) > 0.00001 ? k / vs1 : INFINITE;
+    delay2 = fabs(vs2) > 0.00001 ? k / vs2 : INFINITE;
+    delay3 = fabs(vs3) > 0.00001 ? k / vs3 : INFINITE;
 
     v_last_time = v_cur_time;
 }
@@ -138,7 +138,7 @@ void getAcceleration(const float roll, const float pitch, const float roll_rate,
     float theta_y_dot = -roll_rate;
 
     // Then the required accerleration of control can be computed
-    const float ka = 0.2, kav = 0.003;
+    const float ka = 0.17, kav = 0.09;
     float a_x, a_y;
 
     a_x = ka * theta_x + kav * theta_x_dot;
