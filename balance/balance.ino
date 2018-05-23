@@ -19,7 +19,7 @@
 #define MOTOR2_VEL_PIN 26
 #define MOTOR3_VEL_PIN 38
 
-#define V_upper_limit 3.0f
+#define V_upper_limit 1.0f
 #define ACC_upper_limit 5000000.0f
 #define INFINITE (unsigned long)1000000
 
@@ -45,6 +45,13 @@ const unsigned long delay_imu = 2500;
 unsigned long last_step_imu = 0;
 unsigned long v_last_time = 0;
 
+// ball's position and velocity
+float ball_x = 0;
+float ball_y = 0;
+float ball_vx = 0;
+float ball_vy = 0;
+unsigned long ball_last_time = 0;
+
 int count = 0;
 
 void setup()
@@ -58,6 +65,7 @@ void setup()
     Calibration();         //执行校准
     nLastTime = micros();  //记录当前时间
     v_last_time = micros();
+    ball_last_time = micros();
 }
 
 void loop()
@@ -87,6 +95,11 @@ void loop()
             Serial.println("angle:");
             Serial.println(-pitch);
             Serial.println(-roll);
+
+            Serial.println("Acc:");
+            Serial.println(as1);
+            Serial.println(as2);
+            Serial.println(as3);
 
             Serial.println("Vel:");
             Serial.println(vs1);
@@ -138,11 +151,19 @@ void getAcceleration(const float roll, const float pitch, const float roll_rate,
     float theta_y_dot = -roll_rate;
 
     // Then the required accerleration of control can be computed
-    const float ka = 0.17, kav = 0.09;
+    const float ka = 0.15, kav = 0.05, kt = -0.015, kv = -0.007;
     float a_x, a_y;
 
-    a_x = ka * theta_x + kav * theta_x_dot;
-    a_y = ka * theta_y + kav * theta_y_dot;
+    a_x = ka * theta_x + kav * theta_x_dot + kt * ball_x + kv * ball_vx;
+    a_y = ka * theta_y + kav * theta_y_dot + kt * ball_y + kv * ball_vy;
+
+    // update ball's position and velocity
+    ball_time = micros();
+    float dt = double(ball_time - ball_last_time) / 1000000.0;
+    ball_vx += a_x * dt;
+    ball_vy += a_y * dt;
+    ball_x += ball_vx * dt;
+    ball_y += ball_vy * dt;
 
     // Convert ball acceleration to motors' acceleration
     const float c_phi = cos(45 / fRad2Deg), kz = -0.1 * sin(45 / fRad2Deg);

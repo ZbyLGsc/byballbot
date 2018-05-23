@@ -38,9 +38,9 @@
                         // http://www.freescale.com/files/sensors/doc/app_note/AN3461.pdf
 
 #define INFINITE (unsigned long)1000000
-#define P 1.5f
-#define D 0.7f
-#define V_upper_limit 200.0f
+#define P 0.15   
+#define D 0.03
+#define V_upper_limit 3.0f
 #define ACC_upper_limit 5000000.0f
 
 const int array_size = 1;
@@ -70,6 +70,17 @@ double kalAngleX, kalAngleY;    // Calculated angle using a Kalman filter
 
 uint32_t timer;
 uint8_t i2cData[14];  // Buffer for I2C data
+
+float vs1 = 0.0, vs2 = 0.0, vs3 = 0.0;
+float as1 = 0.0, as2 = 0.0, as3 = 0.0;
+long delay1, delay2, delay3;
+unsigned long v_last_time = 0;
+float fRad2Deg = 57.295779513f;
+bool init_pid_pitch = false;
+bool init_pid_roll = false;
+
+uint32_t last_print_t = 0;
+uint32_t print_t = 0;
 
 // TODO: Make calibration routine
 
@@ -142,8 +153,8 @@ float velocity_roll = 0.0;
 float acc_pitch = 0.0;
 float acc_roll = 0.0;
 
-float setpoint_pitch = 0.0;
-float setpoint_roll = 0.0;
+float setpoint_pitch = -3.3;
+float setpoint_roll = -1.4;
 
 // lowpass filter stuff
 #ifdef USE_LOWPASS_FILTER
@@ -212,6 +223,13 @@ KalmanFilter *kf_acc_z;
 float pid_pitch(float pv)
 {
     error_pitch = setpoint_pitch - pv;
+
+    if(!init_pid_pitch)
+    {
+        pre_error_pitch = error_pitch;
+        init_pid_pitch = true;
+    }
+
     pid_output = kp_pitch * error_pitch + kd_pitch * (error_pitch - pre_error_pitch) / dt;
     pre_error_pitch = error_pitch;
     if(fabs(pid_output) > ACC_upper_limit)
@@ -224,6 +242,13 @@ float pid_pitch(float pv)
 float pid_roll(float pv)
 {
     error_roll = setpoint_roll - pv;
+
+    if(!init_pid_roll)
+    {
+        pre_error_roll = error_roll;
+        init_pid_roll = true;
+    }
+
     pid_output = kp_roll * error_roll + kd_roll * (error_roll - pre_error_roll) / dt;
     pre_error_roll = error_roll;
     if(fabs(pid_output) > ACC_upper_limit)
@@ -478,6 +503,14 @@ void setup()
         pre_kalAngleX[i] = 0;
         pre_kalAngleY[i] = 0;
     }
+
+    // boyu
+    String s = "<" + String(10000000) + ":" + String(10000000) + ":" + String(10000000) + ">";
+    Serial.write(s.c_str());
+    delay(2000);
+    v_last_time = micros();
+    last_print_t = millis();
+    count = millis();
 }
 
 void loop()
@@ -598,25 +631,29 @@ void loop()
 #endif
 
     delt_t = millis() - count;
-    if(delt_t > 100)
+    if(delt_t > 500)
     {
-           Serial.print("Roll: ");
-           //Serial.print(roll); Serial.print(" ");
-           //Serial.print("gyro: "); Serial.print(gyroXangle); Serial.print(" ");
-           //Serial.print("comp: ");Serial.print(compAngleX); Serial.print(" ");
-           Serial.print("kal: ");Serial.print(kalAngleX); Serial.print(" ");
-        
-           Serial.print(" ");
-        
-           Serial.print("Pitch: ");
-           //Serial.print(pitch); Serial.print(" ");
-           //Serial.print("gyro: ");Serial.print(gyroYangle); Serial.print(" ");
-           //Serial.print("comp: ");Serial.print(compAngleY); Serial.print(" ");
-           Serial.print("kal: ");Serial.print(kalAngleY); Serial.print(" ");
+        // Serial.print("x plane: ");
+        // // Serial.print(roll); Serial.print(" ");
+        // // Serial.print("gyro: "); Serial.print(gyroXangle); Serial.print(" ");
+        // // Serial.print("comp: ");Serial.print(compAngleX); Serial.print(" ");
+        // //    Serial.print("kal: ");
+        // Serial.print(kalAngleX);
+        // Serial.print(" ");
 
-           Serial.print("rate = ");
-          Serial.print((float)sumCount/sum, 2);
-           Serial.println(" Hz");
+        // Serial.print(" ");
+
+        // Serial.print("y plane: ");
+        // // Serial.print(pitch); Serial.print(" ");
+        // // Serial.print("gyro: ");Serial.print(gyroYangle); Serial.print(" ");
+        // // Serial.print("comp: ");Serial.print(compAngleY); Serial.print(" ");
+        // // Serial.print("kal: ");
+        // Serial.print(kalAngleY);
+        // Serial.print(" ");
+
+        Serial.print("rate = ");
+        Serial.print((float)sumCount / sum, 2);
+        Serial.println(" Hz");
 
         count = millis();
     }
@@ -643,8 +680,68 @@ void loop()
     sum_kalAngleY += kalAngleY;
     pre_kalAngleY[array_size - 1] = kalAngleY;
 
-    acc_pitch = pid_pitch(sum_kalAngleY / array_size * 180 / M_PI);
-    acc_roll = pid_roll(sum_kalAngleX / array_size * 180 / M_PI);
+    acc_pitch = pid_pitch(sum_kalAngleY / array_size);
+    acc_roll = pid_roll(sum_kalAngleX / array_size);
+
+    // boyu, need to convert acceleration of ball to motors
+    float a_x = -acc_pitch;
+    float a_y = acc_roll;
+
+    // Convert ball acceleration to motors' acceleration
+    const float c_phi = cos(45 / fRad2Deg), kz = -0.1 * sin(45 / fRad2Deg);
+    const float w_z = 0.0;
+    as1 = -a_y * c_phi + kz * w_z;
+    as2 = (sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
+    as3 = (-sqrt(3) / 2 * a_x + 0.5 * a_y) * c_phi + kz * w_z;
+
+    // calculate motors' velocity
+    unsigned long v_cur_time = micros();
+    float dtv = double(v_cur_time - v_last_time) / 1000000.0;
+
+    vs1 += as1 * dtv;
+    vs2 += as2 * dtv;
+    vs3 += as3 * dtv;
+
+    // limit the velocity
+    if(fabs(vs1) > V_upper_limit) vs1 = vs1 > 0.0 ? V_upper_limit : -V_upper_limit;
+    if(fabs(vs2) > V_upper_limit) vs2 = vs2 > 0.0 ? V_upper_limit : -V_upper_limit;
+    if(fabs(vs3) > V_upper_limit) vs3 = vs3 > 0.0 ? V_upper_limit : -V_upper_limit;
+
+    // dead zone
+    double k = 2500.0 / 8 / 2;
+    delay1 = fabs(vs1) > 0.00001 ? k / vs1 : INFINITE;
+    delay2 = fabs(vs2) > 0.00001 ? k / vs2 : INFINITE;
+    delay3 = fabs(vs3) > 0.00001 ? k / vs3 : INFINITE;
+
+    v_last_time = v_cur_time;
+
+    print_t = millis() - last_print_t;
+    if(print_t > 500)
+    {
+        // Serial.println("Vel:");
+        // Serial.println(vs1);
+        // Serial.println(vs2);
+        // Serial.println(vs3);
+        // Serial.println("");
+
+        Serial.println("Acc:");
+        Serial.println(as1);
+        Serial.println(as2);
+        Serial.println(as3);
+        Serial.println("");
+
+        Serial.println("delay:");
+        Serial.println(delay1);
+        Serial.println(delay2);
+        Serial.println(delay3);
+        Serial.println("");
+
+        last_print_t = millis();
+    }
+
+    // send to motor control board
+    String s = "<" + String(delay1) + ":" + String(delay2) + ":" + String(delay3) + ">";
+    Serial.write(s.c_str());
 
     //  imu_pitch_msg.data = kalAngleY;
     //  imu_roll_msg.data = kalAngleX;
@@ -679,8 +776,9 @@ void loop()
     set_delay_pitch(filter_acc_pitch);
     set_delay_roll(filter_acc_roll);
 #else
-    set_delay_pitch(acc_pitch);
-    set_delay_roll(acc_roll);
+    // boyu
+    // set_delay_pitch(acc_pitch);
+    // set_delay_roll(acc_roll);
 #endif
 
 #ifdef KALMAN_CC_FILTER
