@@ -53,6 +53,7 @@ float ball_vy = 0;
 unsigned long ball_last_time = 0;
 
 int count = 0;
+int count2 = 0;
 
 void setup()
 {
@@ -63,9 +64,13 @@ void setup()
     Wire.begin();          //初始化Wire库
     WriteMPUReg(0x6B, 0);  //启动MPU6050设备
     Calibration();         //执行校准
+    String s = "<" + String(INFINITE) + ":" + String(INFINITE) + ":" + String(INFINITE) + ">";
+    Serial.write(s.c_str());
     nLastTime = micros();  //记录当前时间
     v_last_time = micros();
     ball_last_time = micros();
+
+    vs1 = vs2 = vs3 = 0.0f;
 }
 
 void loop()
@@ -90,11 +95,11 @@ void loop()
         Serial.write(s.c_str());
 
         count++;
-        if(count >= 50)
+        if(count >= 1000)
         {
-            Serial.println("angle:");
-            Serial.println(-pitch);
-            Serial.println(-roll);
+            // Serial.println("angle:");
+            // Serial.println(-pitch);
+            // Serial.println(-roll);
 
             Serial.println("Acc:");
             Serial.println(as1);
@@ -105,12 +110,20 @@ void loop()
             Serial.println(vs1);
             Serial.println(vs2);
             Serial.println(vs3);
-
-            Serial.println("delay:");
-            Serial.println(delay1);
-            Serial.println(delay2);
-            Serial.println(delay3);
             Serial.println("");
+
+            // Serial.println("delay:");
+            // Serial.println(delay1);
+            // Serial.println(delay2);
+            // Serial.println(delay3);
+            // Serial.println("");
+
+            // Serial.println("ball x:");
+            // Serial.println(ball_x);
+            // Serial.println(ball_y);
+            // Serial.println("ball v:");
+            // Serial.println(ball_vx);
+            // Serial.println(ball_vy);
 
             count = 0;
         }
@@ -122,14 +135,35 @@ void updateMotorVelocity()
     unsigned long v_cur_time = micros();
     float dt = double(v_cur_time - v_last_time) / 1000000.0;
 
-    vs1 += as1 * dt;
-    vs2 += as2 * dt;
-    vs3 += as3 * dt;
+    float temp_vs1 = vs1 + as1 * dt;
+    float temp_vs2 = vs2 + as2 * dt;
+    float temp_vs3 = vs3 + as3 * dt;
+
+    float ratio = 1.0;
+    if(fabs(temp_vs1) > V_upper_limit) ratio = (V_upper_limit - fabs(vs1)) / (fabs(temp_vs1) - fabs(vs1));
+    if(fabs(temp_vs2) > V_upper_limit)
+    {
+        float temp_ratio = (V_upper_limit - fabs(vs2)) / (fabs(temp_vs2) - fabs(vs2));
+        if(temp_ratio < ratio) ratio = temp_ratio;
+    }
+    if(fabs(temp_vs3) > V_upper_limit)
+    {
+        float temp_ratio = (V_upper_limit - fabs(vs3)) / (fabs(temp_vs3) - fabs(vs3));
+        if(temp_ratio < ratio) ratio = temp_ratio;
+    }
+
+    vs1 += ratio * as1 * dt;
+    vs2 += ratio * as2 * dt;
+    vs3 += ratio * as3 * dt;
 
     // limit the velocity
-    if(fabs(vs1 > V_upper_limit)) vs1 = vs1 > 0.0 ? V_upper_limit : -V_upper_limit;
-    if(fabs(vs2 > V_upper_limit)) vs2 = vs2 > 0.0 ? V_upper_limit : -V_upper_limit;
-    if(fabs(vs3 > V_upper_limit)) vs3 = vs3 > 0.0 ? V_upper_limit : -V_upper_limit;
+    if(fabs(vs1) > V_upper_limit) vs1 = vs1 > 0.0 ? V_upper_limit : -V_upper_limit;
+    if(fabs(vs2) > V_upper_limit) vs2 = vs2 > 0.0 ? V_upper_limit : -V_upper_limit;
+    if(fabs(vs3) > V_upper_limit) vs3 = vs3 > 0.0 ? V_upper_limit : -V_upper_limit;
+
+    // vs1 = V_upper_limit;
+    // vs2 = V_upper_limit;
+    // vs3 = V_upper_limit;
 
     // dead zone
     double k = 2500.0 / 8 / 2;
@@ -145,25 +179,44 @@ void getAcceleration(const float roll, const float pitch, const float roll_rate,
                      float &as1, float &as2, float &as3)
 {
     // convert roll and pitch to plannar theta
+    // count2++;
+    // float theta_y;
+    // if(count2 <= 250)
+    //     theta_y = 10.0;
+    // else if(count2 > 250)
+    //     theta_y = -10.0;
+    // if(count2 >= 500) count2 = 0;
+
+    // float theta_x = 0.0;
+    // float theta_x_dot = 0.0;
+    // float theta_y_dot = 0.0;
+
     float theta_x = -pitch;
     float theta_x_dot = -pitch_rate;
     float theta_y = -roll;
     float theta_y_dot = -roll_rate;
 
     // Then the required accerleration of control can be computed
-    const float ka = 0.15, kav = 0.05, kt = -0.015, kv = -0.007;
+    const float p = 1.9, ka = 0.15, kav = 0.03;
+    // , kt = 0.015, kv = 0.07;
     float a_x, a_y;
 
-    a_x = ka * theta_x + kav * theta_x_dot + kt * ball_x + kv * ball_vx;
-    a_y = ka * theta_y + kav * theta_y_dot + kt * ball_y + kv * ball_vy;
+    a_x = ka * theta_x + kav * theta_x_dot;
+    a_y = ka * theta_y + kav * theta_y_dot;
+    // a_x = ka * theta_x + kav * theta_x_dot + kt * ball_x + kv * ball_vx;
+    // a_y = ka * theta_y + kav * theta_y_dot + kt * ball_y + kv * ball_vy;
+
+    a_x *= p;
+    a_y *= p;
 
     // update ball's position and velocity
-    ball_time = micros();
-    float dt = double(ball_time - ball_last_time) / 1000000.0;
-    ball_vx += a_x * dt;
-    ball_vy += a_y * dt;
-    ball_x += ball_vx * dt;
-    ball_y += ball_vy * dt;
+    // unsigned long ball_time = micros();
+    // float dt = double(ball_time - ball_last_time) / 1000000.0;
+    // ball_vx += a_x * dt;
+    // ball_vy += a_y * dt;
+    // ball_x += ball_vx * dt;
+    // ball_y += ball_vy * dt;
+    // ball_last_time = ball_time;
 
     // Convert ball acceleration to motors' acceleration
     const float c_phi = cos(45 / fRad2Deg), kz = -0.1 * sin(45 / fRad2Deg);
